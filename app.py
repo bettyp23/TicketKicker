@@ -21,9 +21,23 @@ def is_ticket_related(message):
     result = response.choices[0].text.strip().lower()
     return "yes" in result
 
-# Function to run the external script when a ticket-related message is detected
-def run_ticket_script():
-    subprocess.run(['python3', 'ticket_script.py'])  # Adjust the script name if needed
+# Function to send a message back to GroupMe
+def send_groupme_message(text):
+    url = "https://api.groupme.com/v3/bots/post"
+    data = {
+        "bot_id": BOT_ID,
+        "text": text
+    }
+    requests.post(url, json=data)
+
+# Function to kick a user from the GroupMe chat
+def kick_user_from_groupme(user_id):
+    url = f"https://api.groupme.com/v3/groups/{GROUP_ID}/members/{user_id}/remove"
+    data = {
+        "bot_id": BOT_ID
+    }
+    response = requests.post(url, json=data)
+    return response.json()
 
 # Endpoint for receiving messages from GroupMe
 @app.route('/groupme-callback', methods=['POST'])
@@ -31,6 +45,7 @@ def groupme_callback():
     data = request.json
     message_text = data['text']
     sender_id = data['sender_id']
+    user_id = data['user_id']  # Assuming user_id is provided in the incoming message payload
 
     # Ignore messages from the bot itself to avoid loops
     if sender_id == BOT_ID:
@@ -38,7 +53,9 @@ def groupme_callback():
 
     # Check if the message is related to tickets using OpenAI
     if is_ticket_related(message_text):
-        run_ticket_script()  # Run the external script instead of sending a message
+        send_groupme_message(f"User {sender_id}, I noticed you're trying to sell tickets. You will be removed.")
+        kick_user_from_groupme(user_id)  # Kick the user from the group
+        return "OK, user removed.", 200
     
     return "OK", 200
 
